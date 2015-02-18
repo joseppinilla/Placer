@@ -60,7 +60,7 @@ def getGraph(file, G, verbose):
     
     
     if verbose:
-        nx.draw_shell(G)
+        nx.draw(G)
         plt.show()
    
 
