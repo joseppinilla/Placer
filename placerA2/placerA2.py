@@ -199,29 +199,46 @@ class Placer():
             
             self.sites[randSite].setCell(node)
             self.G.node[node]["site"] = self.sites[randSite]
-            siteX, siteY = self.G.node[node]["site"].getCenter()
-            self.tags.append(self.canvasCirkt.create_text(siteX, siteY, text=node)) 
                         
         self.drawConns()
+        time.sleep(3)
+        self.drawTags()
+        time.sleep(3)
+        self.delConns()
+        time.sleep(3)
+        self.delTags()
             
     def drawConns(self):
         """ Extract center point from each node and draw connection to other nodes """
-        #TODO: Draw each connection [once]
+        #TODO: Draw each connection once
         for node in self.G.nodes():
                        
             pX,pY = self.G.node[node]["site"].getCenter()
             for nb in self.G.neighbors(node):
                 nbX,nbY = self.G.node[nb]["site"].getCenter()
                 self.connLines.append(self.canvasCirkt.create_line(pX,pY,nbX,nbY))
-                
-            
+
             self.canvasCirkt.update()
             
-            
+    
+    def drawTags(self):
+        """ Extract center point from each node and draw node Tag """
+        for node in self.G.nodes():
+            pX,pY = self.G.node[node]["site"].getCenter()
+            self.tags.append(self.canvasCirkt.create_text(pX, pY, text=node))            
+        self.canvasCirkt.update()
+    
     def delConns(self):
-        
+        """ Delete Connections on Circuit using array of Line objects """
         for line in self.connLines:
-            self.canvasCirkt.delete(line)    
+            self.canvasCirkt.delete(line)
+        self.canvasCirkt.update()    
+            
+    def delTags(self):
+        """ Delete Tags on Circuit using array of Text objects """
+        for tag in self.tags:
+            self.canvasCirkt.delete(tag)
+        self.canvasCirkt.update()
         
             
         
