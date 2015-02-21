@@ -171,6 +171,8 @@ class Placer():
         self.clear_button['state'] = 'disabled'
         self.running = True
         self.start_timer = time.clock()
+        self.firstRun = True
+        self.T = 0.99
         self.start_button.config(text = "Continue",command=self.contRunning)
         self._startplacement()
 
@@ -179,6 +181,7 @@ class Placer():
         self.stop_button['state'] = 'normal'
         self.clear_button['state'] = 'disabled'
         self.running = True
+        self._startplacement()
         
 
     def stopRunning(self):
@@ -228,42 +231,41 @@ class Placer():
     
     def _startplacement(self):
         
-        self.randPlace()
-        oldCost = self.cost()
+        if (self.firstRun == True):
+            self.randPlace()
+            self.oldCost = self.cost()
+            self.firstRun=False
         
         if (self.display):
             self.drawConns()
             self.drawTags()
-            self.updatePlot(oldCost)
+            self.updatePlot(self.oldCost)
         
-        #while self.running:
-                      
-        T = 0.99
-        while (T>0.1):
+        while (self.T>0.1) and self.running:
             
-            for k in range(0,100): #TODO: Try other numbers
+            for self.k in range(0,100): #TODO: Try other numbers
                 
-                if (self.running):
+                if (not self.running):
+                    return
     
-                    #time.sleep(1)
-                    swapCell, swapSite = self.swapRand()
-                    newCost = self.cost()
-                    deltaNCost = 0-(newCost - oldCost)
-                    
-                    rand = random.random()
-    
-                    if (rand < math.exp(deltaNCost/T)):
-                        # Take move
-                        oldCost = newCost
-                        if (self.display):
-                            self.updateGraph()
-                            self.updatePlot(newCost)
-                        
-                    else:
-                        # Revert move  
-                        self.swap(swapCell,swapSite)
+                swapCell, swapSite = self.swapRand()
+                newCost = self.cost()
+                deltaNCost = 0-(newCost - self.oldCost)
+                
+                rand = random.random()
 
-            T=0.99*T
+                if (rand < math.exp(deltaNCost/self.T)):
+                    # Take move
+                    self.oldCost = newCost
+                    if (self.display):
+                        self.updateGraph()
+                        self.updatePlot(newCost)
+                    
+                else:
+                    # Revert move  
+                    self.swap(swapCell,swapSite)
+
+            self.T=0.99*self.T
                 
     def swapRand(self):
         """ Select Random Cell and swap into Random Site  """
