@@ -6,16 +6,22 @@ class Block():
 
     stateDict = {'free':0,'ocp':-1}
     
-    def __init__(self,canvas,p):
+    def __init__(self,canvas,p,index,rows,cols):
         
-        self.state = 0
-        self.cell = 0
+        self.state = self.stateDict['free']
+        self.cell = -1
         self.p1X = (p[0])
         self.p1Y = (p[1])
         self.p2X = (p[2])
         self.p2Y = (p[3])
+        self.blockX = index%cols
+        self.blockY = (index-self.blockX)//cols
         canvas.create_rectangle(*p, fill="white")
-        
+            
+    def getBlockXY(self,cols,rows):
+        """ Remainder and Floored Quotient return Cell coordinates """
+        return self.blockX , self.blockY
+    
     def setCell(self,cell):
         self.state = self.stateDict["ocp"]
         self.cell = cell
@@ -31,8 +37,7 @@ class Block():
     
     def isOcp(self):
         return (self.state == self.stateDict['ocp'])
-    
-#     def setTag(self,win,tag):
-#         t = graphics.Text(self.getCenter(),tag) 
-#         t.draw(win)
-#         tList.append(t)
+        
+    def free(self):
+        self.state = self.stateDict['free']
+        self.cell = -1

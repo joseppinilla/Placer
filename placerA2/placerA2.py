@@ -41,12 +41,13 @@ class Placer():
                
         
         #=============Parse file to create cells graph===============#
-        self.G=nx.Graph()
+        
+        # Create Directed Graph and fill with input file
+        self.G=nx.DiGraph()
         fin = open(inputfile,'r')
         self.getGraph(fin)
         fin.close() 
-        
-        
+                
         #================Create Data Structures================# 
         # Array of Line objects to draw connections
         self.connLines = []
@@ -54,7 +55,7 @@ class Placer():
         self.sites = []
         # Array of Text objects noting the name of the node assigned to a cell site 
         self.tags = []
-        
+                
         #================Draw Buttons and plots================#
         self.master = master
         self.initialize_buttons()
@@ -64,7 +65,12 @@ class Placer():
         self.initialize_start()
 
     def initialize_buttons(self):
-        """"""
+        """ Draw User Buttons on top of interface 
+            Start: Begin placement process
+            Stop: Stop process
+            Clear: Erase Graph and Plot
+            #TODO: At the end, complete these
+        """
         self.start_button = tk.Button(self.master, text='start', command = self.startrecording)
         self.start_button.grid(row=0, column=0)
 
@@ -76,40 +82,48 @@ class Placer():
 
 
     def initialize_start(self):
-        """"""
+        """ #TODO: Using this? For initialization of flags
+            Verbose?
+            Running?
+        """
         self.stop_button['state'] = 'disabled'
         self.clear_button['state'] = 'disabled'  
-
-        self.firstmeasurement = True    # initialize counter of measurements
+        self.firstmeasurement = True
         self.isrecording = False
 
-    def f(self, t):
+    def f(self, t): #TODO: Remove
         return np.exp(-t) * np.cos(2*np.pi*t)
 
     def initialize_plots(self):
-        """"""
-        # Draw circuit canvas with hard coded width 600 and adjustable height to circuit input
+        """ Draw all graphic components as Canvases
+            Circuit Canvas: Drawing of the Circuit Sites Rows and Columns to overlay Cell Placement and Connections
+            Graph Canvas: Drawing of the Graph structure used for the representation of the Cells
+            Cost Plot Canvas: Plotting of the Cost Function used in the Annealing Process
+            Plot Toolbar: Toolbar options to explore the Graph and Cost Canvases (Zoom, Save, Move...)
+         """
+        #============================Draw circuit canvas=================================#
+        # Draw Canvas with hardcoded width 600 and adjustable height to circuit input
         ckt_max_x = 600
         ckt_max_y = (ckt_max_x*(self.rows))/self.cols
         scale_x = round(ckt_max_x / self.cols)
         scale_y = round(ckt_max_y / self.rows)
-        
         self.canvasCirkt = tk.Canvas(self.master,width=ckt_max_x,height=(ckt_max_y*2)+int(scale_y))
-        self.canvasCirkt.grid(row=1,column=0,columnspan=2)
-        
+        self.canvasCirkt.grid(row=1,column=1,columnspan=2)
+
         # Draw border
         self.canvasCirkt.create_rectangle(1, 1, ckt_max_x, (ckt_max_y*2)+int(scale_y))
         
-        #====Draw cell rows spaced by routing channels=====#
-        
+        # Draw cell rows spaced by routing channels
+        blockIndex=0
         for cut in range(int(scale_y), int(ckt_max_y*2), int(scale_y)*2):
             for cut2 in range(1, int(ckt_max_x), int(scale_x)):
                 # Coordinates for top and bottom points of rectangle
                 points = (cut2, cut, cut2+scale_x-1, cut+scale_y)
-                blockObj = placerGUI.Block(self.canvasCirkt,points)
+                blockObj = placerGUI.Block(self.canvasCirkt,points,blockIndex,self.rows,self.cols)
+                blockIndex+=1
                 self.sites.append(blockObj)
                 
-        print "NUMBER OF SITES ", len(self.sites)
+        #===================================Draw Plots================================#
         # Draw Figure for 2 subplots (Connections Graph and Cost Function)        
         self.figure, self.axes = plt.subplots(2)
         self.figure.set_figwidth(4)
@@ -120,14 +134,21 @@ class Placer():
         nx.draw(self.G, ax=self.axGraph, with_labels=True)
         
         # Initialize cost function plot
-        t1 = np.arange(0.0, 5.0, 0.1)
+        t1 = np.arange(0.0, 5.0, 0.1) #TODO: Change for real cost function
         t2 = np.arange(0.0, 5.0, 0.02)
                 
         plt.sca(self.axCost)
         plt.plot(t1, self.f(t1), 'bo', t2, self.f(t2), 'k')        
 
+        # Draw Cost function Plot
         self.canvasPlot = FigureCanvasTkAgg(self.figure, master=self.master)
-        self.canvasPlot.get_tk_widget().grid(row=1,column=2)
+        self.canvasPlot.get_tk_widget().grid(row=1,column=0)
+        
+        # Draw Toolbar
+        self.toolbarFrame = tk.Frame(self.master)
+        self.toolbarFrame.grid(row=2,column=0,columnspan=3,sticky="W")
+        self.toolbarPlot = NavigationToolbar2TkAgg(self.canvasPlot,self.toolbarFrame)
+        self.toolbarPlot.toolitems
         
     def clear_all(self):
         plt.clf()
@@ -154,31 +175,51 @@ class Placer():
         self.master.quit()
           
     def getGraph(self, fin):
+        """ Parse Input File to fill up Graph structure """
         tmpList = fin.readline().split()
+        # Number of Cells to be placed
         self.cells = int(tmpList[0])
+        # Number of Connections or Nets
         self.conns = int(tmpList[1])
+        # Number of Circuit Rows
         self.rows =  int(tmpList[2])
+        # Number of Circuit Columns
         self.cols =  int(tmpList[3])
+        # Number of available sites in the Circuit
+        self.sitesNum = self.rows*self.cols
         
-        print tmpList
-        
+        # Add nodes from 0 to number of Cells to graph structure        
         self.G.add_nodes_from(range(0,self.cells))
         
+        # For every Net, add edges between corresponding nodes
         for conn in range(0,self.conns):
             tmpList = fin.readline().split()
             numBlocks = int(tmpList[0])
             srcBlock = int(tmpList[1])
-            self.G.node[srcBlock]["net"] = conn
             for block in range(2,numBlocks+1):
-                sinkBlock = int(tmpList[block])
-                self.G.node[sinkBlock]["net"] = conn               
-                self.G.add_edge(srcBlock, sinkBlock)   
+                self.G.add_edge(srcBlock, int(tmpList[block]))   
 
 
     
     def _startplacement(self):
         
         self.randPlace()
+        oldCost = self.cost()
+        
+        
+        
+        while True:
+            time.sleep(3)
+            self.swapCells()
+        
+            newCost = self.cost() 
+              
+            self.updateGraph()
+        
+        #T = 0.99
+        #while (T>0.1):
+            
+        
         
 #         print "HERE" #TODO: Placement algorithm   
 #         time.sleep(2)
@@ -189,24 +230,56 @@ class Placer():
 #         self.canvasPlot.flush_events()            
 
 
+    def swapCells(self):
+        """ Swap from random cell(occupying site) to random site(could be free) """
+        print "SWAP!"
+        randCell = random.randint(0,self.cells-1)
+        print randCell
+        randSite = random.randint(0,self.sitesNum-1)
+        print randSite
+        
+        cellSite = self.G.node[randCell]["site"]
+        
+        if (self.sites[randSite].isFree()):
+            cellSite.free()
+        else:
+            randSiteCell = self.sites[randSite].getCell()
+            self.G.node[randSiteCell]["site"] = self.sites[randCell]
+            
+        cellSite = self.sites[randSite]
+        
+        
+         
+    def updateGraph(self):
+        self.delConns()
+        self.delTags()
+        self.drawConns()
+        self.drawTags()
+    
+    def updatePlot(self):
+        #TODO: Refresh costPlot
+        self.axCost.cla()
+        self.canvasPlot.draw()
+        self.canvasPlot.flush_events()
+        
+        
+
     def randPlace(self):
         random.seed(30) #TODO: Adjustable Seed
-        sitesNum = self.rows*self.cols-1
+        
         for node in self.G.nodes():
-            randSite = random.randint(0,sitesNum)
+            randSite = random.randint(0,self.sitesNum-1)
+            
+            
             while (self.sites[randSite].isOcp()):
                 randSite = random.randint(0,self.cells)    
             
+            print "RAND SITE ", randSite
             self.sites[randSite].setCell(node)
             self.G.node[node]["site"] = self.sites[randSite]
                         
         self.drawConns()
-        time.sleep(3)
         self.drawTags()
-        time.sleep(3)
-        self.delConns()
-        time.sleep(3)
-        self.delTags()
             
     def drawConns(self):
         """ Extract center point from each node and draw connection to other nodes """
@@ -240,15 +313,55 @@ class Placer():
             self.canvasCirkt.delete(tag)
         self.canvasCirkt.update()
         
-            
+    def cost(self):
+        """ Seeing the circuit as a matrix I can find the distance units between sites as the difference
+        between their axes locations. 
         
+          v............v
+        >| A |   |   | B |    Cell Sites Row
+        :#################    Routing Channel
+        :|   |   |   |   |    Cell Sites Row
+        :#################    Routing Channel
+        :|   |   |   |   |    Cell Sites Row
+        :#################    Routing Channel
+        >| C |   |   |   |    Cell Sites Row
+        
+        Therefore:
+            X Distance between the center of A and B
+            DistX = BX-AX-1
             
-    
-
-
+            Y Distance between the center of A and C accounting for the Routing Channels
+            DistY = (CX-AY-1)*2
+        
+        """
+        
+        cost = 0
+        for node in self.G.nodes():
+            # Initialize bounding box points on net source
+            srcX,srcY = self.G.node[node]["site"].getBlockXY(self.cols,self.rows)
+            minX, maxX = srcX, srcX
+            minY, maxY = srcY, srcY
+            
+            # Find bounding box with min and max for X and Y
+            for nb in self.G.neighbors(node):
+                nbX,nbY = self.G.node[nb]["site"].getBlockXY(self.cols,self.rows)
+                if (nbX>maxX):
+                    maxX=nbX
+                elif(nbX<minX):
+                    minX=nbX
+                if(nbY>maxY):
+                    maxY=nbY
+                elif(nbY<minY):
+                    minY=nbY
+            
+            # Accumulate cost as Half Perimeter of Bounding Box for every net
+            cost += ((maxX-minX)-1) + (((maxY-minY)-1)*2)
+                    
+        return cost
 
 root = tk.Tk()
 placer = Placer(root,sys.argv[1:])
 root.protocol('WM_DELETE_WINDOW', placer.quitApp)
+root.resizable(False, False)
 root.mainloop()
 
