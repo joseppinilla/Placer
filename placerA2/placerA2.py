@@ -59,6 +59,9 @@ class Placer():
         # Array of Text objects noting the name of the node assigned to a cell site 
         self.tags = []
         
+        #TODO: Is this right?
+        self.value_x = 0
+        
         #================Draw Buttons and plots================#
         self.master = master
         self.initialize_buttons()
@@ -141,17 +144,17 @@ class Placer():
         nx.draw(self.G, ax=self.axGraph, with_labels=True)
         
         # Initialize cost function plot
-        t1 = np.arange(0.0, 5.0, 0.1) #TODO: Change for real cost function
-        t2 = np.arange(0.0, 5.0, 0.02)
+        #t1 = np.arange(0.0, 5.0, 0.1) #TODO: Change for real cost function
+        #t2 = np.arange(0.0, 5.0, 0.02)
                 
         plt.sca(self.axCost)
-        plt.plot(t1, self.f(t1), 'bo', t2, self.f(t2), 'k')        
-
+        #plt.plot(t1, self.f(t1), 'bo', t2, self.f(t2), 'k')        
+        self.lines, = self.axCost.plot([],[])
         # Draw Cost function Plot
         self.canvasPlot = FigureCanvasTkAgg(self.figure, master=self.master)
         self.canvasPlot.get_tk_widget().grid(row=1,column=0)
         
-        # Draw Toolbar
+        # Draw Tool Bar
         self.toolbarFrame = tk.Frame(self.master)
         self.toolbarFrame.grid(row=2,column=0,columnspan=3,sticky="W")
         self.toolbarPlot = NavigationToolbar2TkAgg(self.canvasPlot,self.toolbarFrame)
@@ -162,13 +165,21 @@ class Placer():
         self.initialize_plot()
         self.initialize_start()
 
-
     def startRunning(self):
         self.start_button['state'] = 'disabled'
         self.stop_button['state'] = 'normal'
         self.clear_button['state'] = 'disabled'
         self.running = True
+        self.start_timer = time.clock()
+        self.start_button.config(text = "Continue",command=self.contRunning)
         self._startplacement()
+
+    def contRunning(self):
+        self.start_button['state'] = 'disabled'
+        self.stop_button['state'] = 'normal'
+        self.clear_button['state'] = 'disabled'
+        self.running = True
+        
 
     def stopRunning(self):
         self.start_button['state'] = 'normal'
@@ -220,76 +231,93 @@ class Placer():
         self.randPlace()
         oldCost = self.cost()
         
+        if (self.display):
+            self.drawConns()
+            self.drawTags()
+            self.updatePlot(oldCost)
+        
         #while self.running:
                       
         T = 0.99
         while (T>0.1):
-            time.sleep(3)
-            self.swapCells()
-            newCost = self.cost()
-            deltaNCost = 0-(newCost - oldCost)
             
-            rand = random.random()
-            print rand
-            
-            if (rand < math.exp(deltaNCost/T)):
-                print "TAKING MOVE"
-            else:
-                print "NOT TAKEN"
+            for k in range(0,100): #TODO: Try other numbers
                 
-            
-            
-            
-            
-            
-            oldCost = newCost
-            
-            
-        
-        
-#         print "HERE" #TODO: Placement algorithm   
-#         time.sleep(2)
-#         self.axGraph.cla()
-#         self.G.remove_node(0)
-#         nx.draw(self.G, ax=self.axGraph, with_labels=True)
-#         self.canvasPlot.draw()
-#         self.canvasPlot.flush_events()            
+                if (self.running):
+    
+                    #time.sleep(1)
+                    swapCell, swapSite = self.swapRand()
+                    newCost = self.cost()
+                    deltaNCost = 0-(newCost - oldCost)
+                    
+                    rand = random.random()
+    
+                    if (rand < math.exp(deltaNCost/T)):
+                        # Take move
+                        oldCost = newCost
+                        if (self.display):
+                            self.updateGraph()
+                            self.updatePlot(newCost)
+                        
+                    else:
+                        # Revert move  
+                        self.swap(swapCell,swapSite)
 
-
-    def swapCells(self):
-        """ Swap from Random Cell(occupying site) to Random Site(could be free) """
+            T=0.99*T
+                
+    def swapRand(self):
+        """ Select Random Cell and swap into Random Site  """
+        # Pick Random Cell so the move is always from an occupied to a free/occupied cell
         randCell = random.randint(0,self.cells-1)
+        # Store Site of Cell to be swapped to use for Swap Back 
+        randCellSite = self.G.node[randCell]["site"].getIndex()
+        
+        # Pick Random Site. Can be free
         randSite = random.randint(0,self.sitesNum-1)
-         
-        if (self.sites[randSite].isFree()):
-            # Free Cell value of Random Site
-            self.G.node[randCell]["site"].free()
+        
+        # Do swap
+        self.swap(randCell,randSite)
+        
+        return randCell, randCellSite
+    
+    def swap(self,swapCell,swapSite):
+        """ Swap Cell(occupying site) to given Target Site(could be free) """
+        
+        # Target Site can be empty
+        if (self.sites[swapSite].isFree()):
+            # Free Cell value of Random Cell
+            self.G.node[swapCell]["site"].free()
 
         else:
-            # Store Cell value of Random Site
-            randSiteCell = self.sites[randSite].getCell()
-            # Write Cell value of Random Site into Random Cell
-            self.G.node[randCell]["site"].setCell(randSiteCell)
-            # Node of Random Site's Cell now points to Random Cell's Site
-            self.G.node[randSiteCell]["site"] = self.G.node[randCell]["site"]
+            # Store Cell value of Target Site
+            tgtSiteCell = self.sites[swapSite].getCell()
+            # Write Cell value of Target Site into Swap Cell
+            self.G.node[swapCell]["site"].setCell(tgtSiteCell)
+            # Node of Target Site's Cell now points to Swap Cell's Site
+            self.G.node[tgtSiteCell]["site"] = self.G.node[swapCell]["site"]
             
-        # Write Cell value of Random Cell into Random Site 
-        self.sites[randSite].setCell(randCell)
-        # Node of Random Cell now points to Random Site
-        self.G.node[randCell]["site"] = self.sites[randSite]
-        
-        if (self.display):
-            self.updateGraph()
-         
+        # Write Cell value of Swap Cell into Target Site 
+        self.sites[swapSite].setCell(swapCell)
+        # Node of Swap Cell now points to Target Site
+        self.G.node[swapCell]["site"] = self.sites[swapSite]
+                 
     def updateGraph(self):
         self.delConns()
         self.delTags()
         self.drawConns()
         self.drawTags()
     
-    def updatePlot(self):
-        #TODO: Refresh costPlot
-        self.axCost.cla()
+    def updatePlot(self,cost):
+
+        timer = time.clock() - self.start_timer
+        # Add new values to plot data set        
+        self.lines.set_xdata(np.append(self.lines.get_xdata(), timer))
+        self.lines.set_ydata(np.append(self.lines.get_ydata(), cost))
+        
+        # Re-scale
+        self.axCost.relim()
+        self.axCost.autoscale_view()
+        # Update plot
         self.canvasPlot.draw()
         self.canvasPlot.flush_events()
         
@@ -307,10 +335,7 @@ class Placer():
             
             self.sites[randSite].setCell(node)
             self.G.node[node]["site"] = self.sites[randSite]
-                        
-        self.drawConns()
-        self.drawTags()
-            
+                                    
     def drawConns(self):
         """ Extract center point from each node and draw connection to other nodes """
         #TODO: Draw each connection once
@@ -343,10 +368,12 @@ class Placer():
         self.canvasCirkt.update()
         
     def cost(self):
-        """ Seeing the circuit as a matrix I can find the distance units between sites as the difference
+        """ Seeing the circuit as a matrix The distance units between sites can be found as the difference
         between their axes locations. 
         
-          v............v
+        A=(0,0)    B=(3,0)    C=(0,3)
+        
+           v...........v
         >| A |   |   | B |    Cell Sites Row
         :#################    Routing Channel
         :|   |   |   |   |    Cell Sites Row
@@ -357,10 +384,9 @@ class Placer():
         
         Therefore:
             X Distance between the center of A and B
-            DistX = BX-AX-1
-            
+            DistX = BX-AX
             Y Distance between the center of A and C accounting for the Routing Channels
-            DistY = (CX-AY-1)*2
+            DistY = (CX-AY)*2
         
         """
         
@@ -384,8 +410,9 @@ class Placer():
                     minY=nbY
             
             # Accumulate cost as Half Perimeter of Bounding Box for every net
-            cost += ((maxX-minX)-1) + (((maxY-minY)-1)*2)
-                    
+            cost += (maxX-minX) + ((maxY-minY)*2)
+        
+         
         return cost
 
 root = tk.Tk()

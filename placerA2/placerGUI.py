@@ -1,5 +1,3 @@
-import Tkinter
-
 
 """Based on the graphics.py module"""
 class Block():
@@ -8,19 +6,23 @@ class Block():
     
     def __init__(self,canvas,p,index,rows,cols):
         
+        self.index = index
         self.state = self.stateDict['free']
         self.cell = -1
         self.p1X = (p[0])
         self.p1Y = (p[1])
         self.p2X = (p[2])
         self.p2Y = (p[3])
-        self.blockX = index%cols
-        self.blockY = (index-self.blockX)//cols
+        self.blockX = self.index%cols
+        self.blockY = (self.index-self.blockX)//cols
         canvas.create_rectangle(*p, fill="white")
             
     def getBlockXY(self,cols,rows):
         """ Remainder and Floored Quotient return Cell coordinates """
         return self.blockX , self.blockY
+    
+    def getIndex(self):
+        return self.index
     
     def setCell(self,cell):
         self.state = self.stateDict["ocp"]
