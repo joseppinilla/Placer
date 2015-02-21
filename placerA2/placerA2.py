@@ -6,6 +6,7 @@ import random
 import math
 import numpy as np
 import Tkinter as tk
+from tkFileDialog import askopenfiles
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
@@ -13,11 +14,10 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 
 class Placer():
     """ Circuit Cell placement using Simulated Annealing
-        Circuit: A representation of a circuit by rows and columns
+        Circuit: A representation of a circuit by Cells to be placed in rows and columns of Sites
         Cell: Circuit component represented as a Graph node with connections to other Cells as edges
         Site: Possible location for a Cell (Is Free or is occupied by a Cell)
         Block: Graphic representation and data of a Site
-    
      """  
     def __init__(self,master,argv):
         
@@ -59,16 +59,10 @@ class Placer():
         # Array of Text objects noting the name of the node assigned to a cell site 
         self.tags = []
         
-        #TODO: Is this right?
-        self.value_x = 0
-        
         #================Draw Buttons and plots================#
         self.master = master
         self.initialize_buttons()
         self.initialize_plots()
-        
-        #===============Start conditions================#
-        self.initialize_start()
 
     def initialize_buttons(self):
         """ Draw User Buttons on top of interface 
@@ -88,11 +82,11 @@ class Placer():
         
         self.display_button = tk.Button(self.master, text='No Display', command = self.setDisplay)
         self.display_button.grid(row=0, column=3)
-
-
-    def initialize_start(self):
-        """ #TODO: Using this? For initialization of flags
-        """
+        
+        self.openFile_button = tk.Button(self.master, text='Open...', command = self.openFile)
+        self.openFile_button.grid(row=0, column=4)
+        
+        # Initialize Button States and Actions
         self.stop_button['state'] = 'disabled'
         self.clear_button['state'] = 'disabled'
         self.display_button['state'] = 'normal'  
@@ -100,9 +94,8 @@ class Placer():
         self.running = False
         # Boolean switch to display placement connections and tags, turn off for faster processing
         self.display = True
-
-    def f(self, t): #TODO: Remove
-        return np.exp(-t) * np.cos(2*np.pi*t)
+        # Boolean switch to specify first run and allow stop/continue behavior that doesn't initialize program
+        self.firstRun = True
 
     def initialize_plots(self):
         """ Draw all graphic components as Canvases
@@ -118,7 +111,7 @@ class Placer():
         scale_x = round(ckt_max_x / self.cols)
         scale_y = round(ckt_max_y / self.rows)
         self.canvasCirkt = tk.Canvas(self.master,width=ckt_max_x,height=(ckt_max_y*2)+int(scale_y))
-        self.canvasCirkt.grid(row=1,column=1,columnspan=3)
+        self.canvasCirkt.grid(row=1,column=1,columnspan=4)
 
         # Draw border
         self.canvasCirkt.create_rectangle(1, 1, ckt_max_x, (ckt_max_y*2)+int(scale_y))
@@ -143,12 +136,8 @@ class Placer():
         # Draw connection Graph
         nx.draw(self.G, ax=self.axGraph, with_labels=True)
         
-        # Initialize cost function plot
-        #t1 = np.arange(0.0, 5.0, 0.1) #TODO: Change for real cost function
-        #t2 = np.arange(0.0, 5.0, 0.02)
-                
-        plt.sca(self.axCost)
-        #plt.plot(t1, self.f(t1), 'bo', t2, self.f(t2), 'k')        
+        # Select Cost Plot as current Axis. Get lines to use for plot updates
+        plt.sca(self.axCost)       
         self.lines, = self.axCost.plot([],[])
         # Draw Cost function Plot
         self.canvasPlot = FigureCanvasTkAgg(self.figure, master=self.master)
@@ -159,10 +148,16 @@ class Placer():
         self.toolbarFrame.grid(row=2,column=0,columnspan=3,sticky="W")
         self.toolbarPlot = NavigationToolbar2TkAgg(self.canvasPlot,self.toolbarFrame)
         self.toolbarPlot.toolitems
+
+    def openFile(self):
+        askopenfiles()
+        pass
+            
         
     def clearAll(self):
         plt.clf()
-        self.initialize_plot()
+        self.initialize_plots()
+        self.start_button.config(text = "Start",command=self.startRunning)
         self.initialize_start()
 
     def startRunning(self):
@@ -171,7 +166,6 @@ class Placer():
         self.clear_button['state'] = 'disabled'
         self.running = True
         self.start_timer = time.clock()
-        self.firstRun = True
         self.T = 0.99
         self.start_button.config(text = "Continue",command=self.contRunning)
         self._startplacement()
@@ -418,6 +412,7 @@ class Placer():
         return cost
 
 root = tk.Tk()
+askopenfiles(title="Open benchmark file or multiple benchmark files...")
 placer = Placer(root,sys.argv[1:])
 root.protocol('WM_DELETE_WINDOW', placer.quitApp)
 root.resizable(False, False)
