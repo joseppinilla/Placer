@@ -17,7 +17,7 @@ class Placer():
         
         #=================Get options=================#
         inputfile = None
-        verbose = False
+        self.verbose = False
         try:
             opts, args = getopt.getopt(argv, "hvi:", ["ifile="])
         except getopt.GetoptError:
@@ -212,10 +212,9 @@ class Placer():
                 
                 time.sleep(2)
                 self.swapCells()
-                
                 newCost = self.cost() 
                 
-                self.updateGraph()
+                
                         
         #T = 0.99
         #while (T>0.1):
@@ -233,39 +232,28 @@ class Placer():
 
     def swapCells(self):
         """ Swap from Random Cell(occupying site) to Random Site(could be free) """
-        print "SWAP!"
         randCell = random.randint(0,self.cells-1)
-        print randCell
         randSite = random.randint(0,self.sitesNum-1)
-        print randSite
-        
-        
-               
+         
         if (self.sites[randSite].isFree()):
-            print "IS FREE!"
-            # Previous Block of Cell now Free
+            # Free Cell value of Random Site
             self.G.node[randCell]["site"].free()
-                        
-            # Point to new Site 
-            self.sites[randSite].setCell(randCell)
-            self.G.node[randCell]["site"] = self.sites[randSite]
+
         else:
             # Store Cell value of Random Site
             randSiteCell = self.sites[randSite].getCell()
-                        
-            # Write Cell value of Random Cell into Random Site
-            self.sites[randSite].setCell(randCell)
-            
             # Write Cell value of Random Site into Random Cell
             self.G.node[randCell]["site"].setCell(randSiteCell)
-                        
             # Node of Random Site's Cell now points to Random Cell's Site
             self.G.node[randSiteCell]["site"] = self.G.node[randCell]["site"]
             
-            # Node of Random Cell now points to Random Site            
-            self.G.node[randCell]["site"] = self.sites[randSite]
+        # Write Cell value of Random Cell into Random Site 
+        self.sites[randSite].setCell(randCell)
+        # Node of Random Cell now points to Random Site
+        self.G.node[randCell]["site"] = self.sites[randSite]
         
-        
+        if (self.verbose):
+            self.updateGraph()
          
     def updateGraph(self):
         self.delConns()
