@@ -6,7 +6,6 @@ import random
 import math
 import numpy as np
 import Tkinter as tk
-from tkFileDialog import askopenfiles
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
@@ -77,23 +76,23 @@ class Placer():
         self.stop_button = tk.Button(self.master, text='Stop', command = self.stopRunning)
         self.stop_button.grid(row=0, column=1)
 
-        self.clear_button = tk.Button(self.master, text='Clear', command = self.clearAll)
-        self.clear_button.grid(row=0, column=2)
+        self.graph_button = tk.Button(self.master, text='Graph', command = self.showGraph)
+        self.graph_button.grid(row=0, column=2)
         
-        self.display_button = tk.Button(self.master, text='No Display', command = self.setDisplay)
-        self.display_button.grid(row=0, column=3)
+        self.plot_button = tk.Button(self.master, text='Plot', command = self.showPlot)
+        self.plot_button.grid(row=0, column=3)
         
-        self.openFile_button = tk.Button(self.master, text='Open...', command = self.openFile)
-        self.openFile_button.grid(row=0, column=4)
+        self.draw_button = tk.Button(self.master, text='Draw', command = self.drawCells)
+        self.draw_button.grid(row=0, column=4)
         
         # Initialize Button States and Actions
         self.stop_button['state'] = 'disabled'
-        self.clear_button['state'] = 'disabled'
-        self.display_button['state'] = 'normal'  
         # Boolean switch to control flow of placement process
         self.running = False
-        # Boolean switch to display placement connections and tags, turn off for faster processing
-        self.display = True
+        # Boolean switch to plot placement connections and tags, turn off for faster processing
+        self.plot = False
+        self.drawing = False
+        self.graph = False
         # Boolean switch to specify first run and allow stop/continue behavior that doesn't initialize program
         self.firstRun = True
 
@@ -128,18 +127,21 @@ class Placer():
                 
         #===================================Draw Plots================================#
         # Draw Figure for 2 subplots (Connections Graph and Cost Function)        
-        self.figure, self.axes = plt.subplots(2)
+        self.figure, self.axes = plt.subplots(2, facecolor="white")
         self.figure.set_figwidth(4)
         self.axGraph = self.axes[0]
         self.axCost = self.axes[1]
-                
-        # Draw connection Graph
-        nx.draw(self.G, ax=self.axGraph, with_labels=True)
+        
+        # Initial condition for connection Graph
+        self.axGraph.set_visible(False)
         
         # Select Cost Plot as current Axis. Get lines to use for plot updates
         plt.sca(self.axCost)       
         self.lines, = self.axCost.plot([],[])
+        self.axCost.set_xlabel("Time")
+        self.axCost.set_title("Cost")
         # Draw Cost function Plot
+        
         self.canvasPlot = FigureCanvasTkAgg(self.figure, master=self.master)
         self.canvasPlot.get_tk_widget().grid(row=1,column=0)
         
@@ -148,22 +150,32 @@ class Placer():
         self.toolbarFrame.grid(row=2,column=0,columnspan=3,sticky="W")
         self.toolbarPlot = NavigationToolbar2TkAgg(self.canvasPlot,self.toolbarFrame)
         self.toolbarPlot.toolitems
-
-    def openFile(self):
-        askopenfiles()
-        pass
-            
+           
+    def showGraph(self):
+        self.graph_button['state'] = 'disabled'
+        # Draw connection Graph
+        self.axGraph.set_visible(True)
+        nx.draw(self.G, ax=self.axGraph, with_labels=True)
+        self.canvasPlot.draw()
+        self.canvasPlot.flush_events()
         
-    def clearAll(self):
-        plt.clf()
-        self.initialize_plots()
-        self.start_button.config(text = "Start",command=self.startRunning)
-        self.initialize_start()
+    def showPlot(self):
+        self.plot = not self.plot
+        if self.plot:
+            self.plot_button['text'] = "No Plot"
+        else:
+            self.plot_button['text'] = "Plot"
+    
+    def drawCells(self):
+        self.drawing = not self.drawing
+        if self.drawing:
+            self.draw_button['text'] = "No Draw"
+        else:
+            self.draw_button['text'] = "Draw"
 
     def startRunning(self):
         self.start_button['state'] = 'disabled'
         self.stop_button['state'] = 'normal'
-        self.clear_button['state'] = 'disabled'
         self.running = True
         self.start_timer = time.clock()
         self.T = 0.99
@@ -173,29 +185,15 @@ class Placer():
     def contRunning(self):
         self.start_button['state'] = 'disabled'
         self.stop_button['state'] = 'normal'
-        self.clear_button['state'] = 'disabled'
         self.running = True
         self._startplacement()
-        
 
     def stopRunning(self):
         self.start_button['state'] = 'normal'
         self.stop_button['state'] = 'disabled'
-        self.clear_button['state'] = 'normal'
         self.running = False
-
-    def setDisplay(self):
-        self.display = not self.display
-        if self.display:
-            self.display_button['text'] = "No Display"
-        else:
-            self.display_button['text'] = "Display"
         
-
-    def quitApp(self):
-        self.master.destroy()
-        self.master.quit()
-          
+        
     def getGraph(self, fin):
         """ Parse Input File to fill up Graph structure """
         tmpList = fin.readline().split()
@@ -224,17 +222,25 @@ class Placer():
 
     
     def _startplacement(self):
+        """ Start Simulated Annealing Process """
         
+        # On first run to random placement. This allows stopping and continuing the process
         if (self.firstRun == True):
             self.randPlace()
             self.oldCost = self.cost()
             self.firstRun=False
         
-        if (self.display):
+        # If user selects drawing circuit
+        if (self.drawing):
             self.drawConns()
             self.drawTags()
+        
+        # If user selects plotting cost function
+        if(self.plot):
             self.updatePlot(self.oldCost)
         
+        
+        #========================Simulated Annealing========================#
         while (self.T>0.1) and self.running:
             
             for self.k in range(0,100): #TODO: Try other numbers
@@ -251,8 +257,9 @@ class Placer():
                 if (rand < math.exp(deltaNCost/self.T)):
                     # Take move
                     self.oldCost = newCost
-                    if (self.display):
-                        self.updateGraph()
+                    if (self.drawing):
+                        self.updateDraw()
+                    if (self.plot):
                         self.updatePlot(newCost)
                     
                 else:
@@ -297,34 +304,34 @@ class Placer():
         # Node of Swap Cell now points to Target Site
         self.G.node[swapCell]["site"] = self.sites[swapSite]
                  
-    def updateGraph(self):
+    def updateDraw(self):
+        """ Draw circuit Connections and Cell Tags """
         self.delConns()
         self.delTags()
         self.drawConns()
         self.drawTags()
     
     def updatePlot(self,cost):
-
+        """ Cost plot gets updated on every new cost value """
         timer = time.clock() - self.start_timer
         # Add new values to plot data set        
         self.lines.set_xdata(np.append(self.lines.get_xdata(), timer))
         self.lines.set_ydata(np.append(self.lines.get_ydata(), cost))
-        
         # Re-scale
         self.axCost.relim()
         self.axCost.autoscale_view()
         # Update plot
+        self.axCost.set_title("Cost=" + str(cost))
         self.canvasPlot.draw()
         self.canvasPlot.flush_events()
-        
-        
 
     def randPlace(self):
+        """ Random placement, for every node a Site is assigned """
+        
         random.seed(30) #TODO: Adjustable Seed
         
         for node in self.G.nodes():
             randSite = random.randint(0,self.sitesNum-1)
-            
             
             while (self.sites[randSite].isOcp()):
                 randSite = random.randint(0,self.cells)    
@@ -364,8 +371,8 @@ class Placer():
         self.canvasCirkt.update()
         
     def cost(self):
-        """ Seeing the circuit as a matrix The distance units between sites can be found as the difference
-        between their axes locations. 
+        """ Seeing the circuit as a matrix the distance units between sites can be found as the difference
+        between their axis locations. 
         
         A=(0,0)    B=(3,0)    C=(0,3)
         
@@ -378,9 +385,7 @@ class Placer():
         :#################    Routing Channel
         >| C |   |   |   |    Cell Sites Row
         
-        Therefore:
-            X Distance between the center of A and B
-            DistX = BX-AX
+        Note:
             Y Distance between the center of A and C accounting for the Routing Channels
             DistY = (CX-AY)*2
         
@@ -407,13 +412,16 @@ class Placer():
             
             # Accumulate cost as Half Perimeter of Bounding Box for every net
             cost += (maxX-minX) + ((maxY-minY)*2)
-        
-         
+
         return cost
+    
+    def quitApp(self):
+        self.master.destroy()
+        self.master.quit()
 
 root = tk.Tk()
-askopenfiles(title="Open benchmark file or multiple benchmark files...")
 placer = Placer(root,sys.argv[1:])
+root.wm_title("SA Placement Tool")
 root.protocol('WM_DELETE_WINDOW', placer.quitApp)
 root.resizable(False, False)
 root.mainloop()
