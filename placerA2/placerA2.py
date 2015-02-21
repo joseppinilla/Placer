@@ -89,7 +89,7 @@ class Placer():
         self.stop_button['state'] = 'disabled'
         self.clear_button['state'] = 'disabled'  
         self.firstmeasurement = True
-        self.isrecording = False
+        self.running = False
 
     def f(self, t): #TODO: Remove
         return np.exp(-t) * np.cos(2*np.pi*t)
@@ -160,7 +160,7 @@ class Placer():
         self.start_button['state'] = 'disabled'
         self.stop_button['state'] = 'normal'
         self.clear_button['state'] = 'disabled'
-        self.isrecording = True
+        self.running = True
         self._startplacement()
 
     def stoprecording(self):
@@ -168,7 +168,7 @@ class Placer():
         self.stop_button['state'] = 'disabled'
         self.clear_button['state'] = 'normal'
 
-        self.isrecording = False
+        self.running = False
 
     def quitApp(self):
         self.master.destroy()
@@ -207,15 +207,16 @@ class Placer():
         oldCost = self.cost()
         
         
-        
         while True:
-            time.sleep(3)
-            self.swapCells()
-        
-            newCost = self.cost() 
-              
-            self.updateGraph()
-        
+            if (self.running):
+                
+                time.sleep(2)
+                self.swapCells()
+                
+                newCost = self.cost() 
+                
+                self.updateGraph()
+                        
         #T = 0.99
         #while (T>0.1):
             
@@ -231,22 +232,38 @@ class Placer():
 
 
     def swapCells(self):
-        """ Swap from random cell(occupying site) to random site(could be free) """
+        """ Swap from Random Cell(occupying site) to Random Site(could be free) """
         print "SWAP!"
         randCell = random.randint(0,self.cells-1)
         print randCell
         randSite = random.randint(0,self.sitesNum-1)
         print randSite
         
-        cellSite = self.G.node[randCell]["site"]
         
+               
         if (self.sites[randSite].isFree()):
-            cellSite.free()
+            print "IS FREE!"
+            # Previous Block of Cell now Free
+            self.G.node[randCell]["site"].free()
+                        
+            # Point to new Site 
+            self.sites[randSite].setCell(randCell)
+            self.G.node[randCell]["site"] = self.sites[randSite]
         else:
+            # Store Cell value of Random Site
             randSiteCell = self.sites[randSite].getCell()
-            self.G.node[randSiteCell]["site"] = self.sites[randCell]
+                        
+            # Write Cell value of Random Cell into Random Site
+            self.sites[randSite].setCell(randCell)
             
-        cellSite = self.sites[randSite]
+            # Write Cell value of Random Site into Random Cell
+            self.G.node[randCell]["site"].setCell(randSiteCell)
+                        
+            # Node of Random Site's Cell now points to Random Cell's Site
+            self.G.node[randSiteCell]["site"] = self.G.node[randCell]["site"]
+            
+            # Node of Random Cell now points to Random Site            
+            self.G.node[randCell]["site"] = self.sites[randSite]
         
         
          
@@ -274,7 +291,6 @@ class Placer():
             while (self.sites[randSite].isOcp()):
                 randSite = random.randint(0,self.cells)    
             
-            print "RAND SITE ", randSite
             self.sites[randSite].setCell(node)
             self.G.node[node]["site"] = self.sites[randSite]
                         
@@ -285,7 +301,6 @@ class Placer():
         """ Extract center point from each node and draw connection to other nodes """
         #TODO: Draw each connection once
         for node in self.G.nodes():
-                       
             pX,pY = self.G.node[node]["site"].getCenter()
             for nb in self.G.neighbors(node):
                 nbX,nbY = self.G.node[nb]["site"].getCenter()
