@@ -3,6 +3,7 @@ import sys
 import getopt
 import placerGUI
 import random
+import math
 import numpy as np
 import Tkinter as tk
 import networkx as nx
@@ -11,29 +12,31 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 
 
 class Placer():
-      
+    """ Circuit Cell placement using Simulated Annealing
+        Circuit: A representation of a circuit by rows and columns
+        Cell: Circuit component represented as a Graph node with connections to other Cells as edges
+        Site: Possible location for a Cell (Is Free or is occupied by a Cell)
+        Block: Graphic representation and data of a Site
+    
+     """  
     def __init__(self,master,argv):
         
         
         #=================Get options=================#
         inputfile = None
-        self.verbose = False
         try:
-            opts, args = getopt.getopt(argv, "hvi:", ["ifile="])
+            opts, args = getopt.getopt(argv, "hi:", ["ifile="])
         except getopt.GetoptError:
-            print 'test.py [-v] -i <inputfile>'
+            print 'test.py -i <inputfile>'
             sys.exit(2)
     
         for opt, arg in opts:
             if opt == '-h':
-                print 'test.py [-v] -i <inputfile>'
+                print 'test.py -i <inputfile>'
                 sys.exit()
             elif opt in ("-i", "--ifile"):
                 inputfile = arg
                 print "Read file " + inputfile
-            elif opt in ("-v", "--verbose"):
-                print "Setup Verbose"
-                self.verbose = True
         
         if (not inputfile):
             print 'test.py -i <inputfile>'
@@ -55,7 +58,7 @@ class Placer():
         self.sites = []
         # Array of Text objects noting the name of the node assigned to a cell site 
         self.tags = []
-                
+        
         #================Draw Buttons and plots================#
         self.master = master
         self.initialize_buttons()
@@ -71,25 +74,29 @@ class Placer():
             Clear: Erase Graph and Plot
             #TODO: At the end, complete these
         """
-        self.start_button = tk.Button(self.master, text='start', command = self.startrecording)
+        self.start_button = tk.Button(self.master, text='Start', command = self.startRunning)
         self.start_button.grid(row=0, column=0)
 
-        self.stop_button = tk.Button(self.master, text='stop', command = self.stoprecording)
+        self.stop_button = tk.Button(self.master, text='Stop', command = self.stopRunning)
         self.stop_button.grid(row=0, column=1)
 
-        self.clear_button = tk.Button(self.master, text='clear', command = self.clear_all)
-        self.clear_button.grid(row=0, column=2)  
+        self.clear_button = tk.Button(self.master, text='Clear', command = self.clearAll)
+        self.clear_button.grid(row=0, column=2)
+        
+        self.display_button = tk.Button(self.master, text='No Display', command = self.setDisplay)
+        self.display_button.grid(row=0, column=3)
 
 
     def initialize_start(self):
         """ #TODO: Using this? For initialization of flags
-            Verbose?
-            Running?
         """
         self.stop_button['state'] = 'disabled'
-        self.clear_button['state'] = 'disabled'  
-        self.firstmeasurement = True
+        self.clear_button['state'] = 'disabled'
+        self.display_button['state'] = 'normal'  
+        # Boolean switch to control flow of placement process
         self.running = False
+        # Boolean switch to display placement connections and tags, turn off for faster processing
+        self.display = True
 
     def f(self, t): #TODO: Remove
         return np.exp(-t) * np.cos(2*np.pi*t)
@@ -108,7 +115,7 @@ class Placer():
         scale_x = round(ckt_max_x / self.cols)
         scale_y = round(ckt_max_y / self.rows)
         self.canvasCirkt = tk.Canvas(self.master,width=ckt_max_x,height=(ckt_max_y*2)+int(scale_y))
-        self.canvasCirkt.grid(row=1,column=1,columnspan=2)
+        self.canvasCirkt.grid(row=1,column=1,columnspan=3)
 
         # Draw border
         self.canvasCirkt.create_rectangle(1, 1, ckt_max_x, (ckt_max_y*2)+int(scale_y))
@@ -150,25 +157,32 @@ class Placer():
         self.toolbarPlot = NavigationToolbar2TkAgg(self.canvasPlot,self.toolbarFrame)
         self.toolbarPlot.toolitems
         
-    def clear_all(self):
+    def clearAll(self):
         plt.clf()
         self.initialize_plot()
         self.initialize_start()
 
 
-    def startrecording(self):
+    def startRunning(self):
         self.start_button['state'] = 'disabled'
         self.stop_button['state'] = 'normal'
         self.clear_button['state'] = 'disabled'
         self.running = True
         self._startplacement()
 
-    def stoprecording(self):
+    def stopRunning(self):
         self.start_button['state'] = 'normal'
         self.stop_button['state'] = 'disabled'
         self.clear_button['state'] = 'normal'
-
         self.running = False
+
+    def setDisplay(self):
+        self.display = not self.display
+        if self.display:
+            self.display_button['text'] = "No Display"
+        else:
+            self.display_button['text'] = "Display"
+        
 
     def quitApp(self):
         self.master.destroy()
@@ -206,18 +220,30 @@ class Placer():
         self.randPlace()
         oldCost = self.cost()
         
-        
-        while True:
-            if (self.running):
+        #while self.running:
+                      
+        T = 0.99
+        while (T>0.1):
+            time.sleep(3)
+            self.swapCells()
+            newCost = self.cost()
+            deltaNCost = 0-(newCost - oldCost)
+            
+            rand = random.random()
+            print rand
+            
+            if (rand < math.exp(deltaNCost/T)):
+                print "TAKING MOVE"
+            else:
+                print "NOT TAKEN"
                 
-                time.sleep(2)
-                self.swapCells()
-                newCost = self.cost() 
-                
-                
-                        
-        #T = 0.99
-        #while (T>0.1):
+            
+            
+            
+            
+            
+            oldCost = newCost
+            
             
         
         
@@ -252,7 +278,7 @@ class Placer():
         # Node of Random Cell now points to Random Site
         self.G.node[randCell]["site"] = self.sites[randSite]
         
-        if (self.verbose):
+        if (self.display):
             self.updateGraph()
          
     def updateGraph(self):
