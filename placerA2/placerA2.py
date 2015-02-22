@@ -69,15 +69,16 @@ class Placer():
     def initialize_buttons(self):
         """ Draw User Buttons on top of interface 
             Start: Begin placement process
-            Stop: Stop process
-            Clear: Erase Graph and Plot
-            #TODO: At the end, complete these
+            Pause: Pause process. Allows continuing.
+            Graph: Show Graph nodes to visualize connections
+            Plot: Show Cost plot to see SA progress
+            Draw: Show Circuit Cells
         """
         self.start_button = tk.Button(self.master, text='Start', command = self.startRunning)
         self.start_button.grid(row=0, column=0)
 
-        self.stop_button = tk.Button(self.master, text='Stop', command = self.stopRunning)
-        self.stop_button.grid(row=0, column=1)
+        self.pause_button = tk.Button(self.master, text='Stop', command = self.pauseRunning)
+        self.pause_button.grid(row=0, column=1)
 
         self.graph_button = tk.Button(self.master, text='Graph', command = self.showGraph)
         self.graph_button.grid(row=0, column=2)
@@ -89,7 +90,7 @@ class Placer():
         self.draw_button.grid(row=0, column=4)
         
         # Initialize Button States and Actions
-        self.stop_button['state'] = 'disabled'
+        self.pause_button['state'] = 'disabled'
         # Boolean switch to control flow of placement process
         self.running = False
         # Boolean switch to plot placement connections and tags, turn off for faster processing
@@ -155,6 +156,7 @@ class Placer():
         self.toolbarPlot.toolitems
            
     def showGraph(self):
+        """ User selection to display graph """
         self.graph_button['state'] = 'disabled'
         # Draw connection Graph
         self.axGraph.set_visible(True)
@@ -163,6 +165,7 @@ class Placer():
         self.canvasPlot.flush_events()
         
     def showPlot(self):
+        """ User selection to display Cost """
         self.plot = not self.plot
         if self.plot:
             self.plot_button['text'] = "No Plot"
@@ -170,6 +173,7 @@ class Placer():
             self.plot_button['text'] = "Plot"
     
     def drawCells(self):
+        """ User selection to display Circuit Cells """
         self.drawing = not self.drawing
         if self.drawing:
             self.draw_button['text'] = "No Draw"
@@ -177,23 +181,19 @@ class Placer():
             self.draw_button['text'] = "Draw"
 
     def startRunning(self):
+        """ User control for placement process """
         self.start_button['state'] = 'disabled'
-        self.stop_button['state'] = 'normal'
+        self.pause_button['state'] = 'normal'
         self.running = True
-        self.start_timer = time.clock()
-        self.T = 0.99
-        self.start_button.config(text = "Continue",command=self.contRunning)
+        if (self.firstRun):
+            self.start_timer = time.clock()
+            self.T = 0.99
         self._startplacement()
 
-    def contRunning(self):
-        self.start_button['state'] = 'disabled'
-        self.stop_button['state'] = 'normal'
-        self.running = True
-        self._startplacement()
-
-    def stopRunning(self):
+    def pauseRunning(self):
+        """  """
         self.start_button['state'] = 'normal'
-        self.stop_button['state'] = 'disabled'
+        self.pause_button['state'] = 'disabled'
         self.running = False
         
         
@@ -211,23 +211,25 @@ class Placer():
         # Number of available sites in the Circuit
         self.sitesNum = self.rows*self.cols
         
-        # Add nodes from 0 to number of Cells to graph structure        
+        # Add nodes from 0 to number of Cells to graph structure and initialize net array        
         self.G.add_nodes_from(range(0,self.cells))
-        
+        for node in self.G.nodes():
+            self.G.node[node]["net"]=[]
+            
         # For every Net, add edges between corresponding nodes
-        for conn in range(0,self.conns):
+        for net in range(0,self.conns):
             tmpList = fin.readline().split()
-            numBlocks = int(tmpList[0])
-            srcBlock = int(tmpList[1])
-            for block in range(2,numBlocks+1):
-                self.G.add_edge(srcBlock, int(tmpList[block]))   
-
-
+            numNodes = int(tmpList[0])
+            srcNode = int(tmpList[1])
+            self.G.node[srcNode]["net"].append(net)
+            for conn in range(2,numNodes+1):
+                self.G.add_edge(srcNode, int(tmpList[conn]))
+                self.G.node[int(tmpList[conn])]["net"].append(net)
     
     def _startplacement(self):
         """ Start Simulated Annealing Process """
         
-        # On first run to random placement. This allows stopping and continuing the process
+        # On first run to random placement. This allows pausing and continuing the process
         if (self.firstRun == True):
             self.randPlace()
             self.oldCost = self.cost()
