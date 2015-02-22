@@ -22,7 +22,7 @@ class Placer():
         
         
         #=================Get options=================#
-        inputfile = None
+        self.inputfile = None
         try:
             opts, args = getopt.getopt(argv, "hi:", ["ifile="])
         except getopt.GetoptError:
@@ -34,10 +34,10 @@ class Placer():
                 print 'test.py -i <inputfile>'
                 sys.exit()
             elif opt in ("-i", "--ifile"):
-                inputfile = arg
-                print "Read file " + inputfile
+                self.inputfile = arg
+                print "Read file " + self.inputfile
         
-        if (not inputfile):
+        if (not self.inputfile):
             print 'test.py -i <inputfile>'
             sys.exit(2)
                
@@ -46,7 +46,7 @@ class Placer():
         
         # Create Directed Graph and fill with input file
         self.G=nx.DiGraph()
-        fin = open(inputfile,'r')
+        fin = open(self.inputfile,'r')
         self.getGraph(fin)
         fin.close() 
                 
@@ -62,6 +62,9 @@ class Placer():
         self.master = master
         self.initialize_buttons()
         self.initialize_plots()
+        
+        # To run on scripts for characterization
+        #self.startRunning()
 
     def initialize_buttons(self):
         """ Draw User Buttons on top of interface 
@@ -268,6 +271,18 @@ class Placer():
 
             self.T=0.99*self.T
                 
+        # Always display result at the end of the process
+        self.updateDraw()
+        self.updatePlot(newCost)
+        
+        # Append result to results file
+        with open("results.txt", "a") as outputfile:
+            outputfile.write(str(newCost) + "\n")
+
+        # When running without visualization close window            
+        if not self.drawing:
+            sys.exit()
+        
     def swapRand(self):
         """ Select Random Cell and swap into Random Site  """
         # Pick Random Cell so the move is always from an occupied to a free/occupied cell
