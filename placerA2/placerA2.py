@@ -18,35 +18,12 @@ class Placer():
         Site: Possible location for a Cell (Is Free or is occupied by a Cell)
         Block: Graphic representation and data of a Site
      """  
-    def __init__(self,master,argv):
-        
-        
-        #=================Get options=================#
-        self.inputfile = None
-        try:
-            opts, args = getopt.getopt(argv, "hi:", ["ifile="])
-        except getopt.GetoptError:
-            print 'test.py -i <inputfile>'
-            sys.exit(2)
-    
-        for opt, arg in opts:
-            if opt == '-h':
-                print 'test.py -i <inputfile>'
-                sys.exit()
-            elif opt in ("-i", "--ifile"):
-                self.inputfile = arg
-                print "Read file " + self.inputfile
-        
-        if (not self.inputfile):
-            print 'test.py -i <inputfile>'
-            sys.exit(2)
-               
+    def __init__(self,master,T,inputfile,quietMode):
         
         #=============Parse file to create cells graph===============#
-        
         # Create Directed Graph and fill with input file
         self.G=nx.DiGraph()
-        fin = open(self.inputfile,'r')
+        fin = open(inputfile,'r')
         self.getGraph(fin)
         fin.close() 
                 
@@ -57,14 +34,17 @@ class Placer():
         self.sites = []
         # Array of Text objects noting the name of the node assigned to a cell site 
         self.tags = []
-                
+        # Assign Initial Temperature
+        self.T = T
         #================Draw Buttons and plots================#
         self.master = master
         self.initialize_buttons()
         self.initialize_plots()
-                
-        # To run on scripts for characterization
-        self.startRunning()
+        
+        
+        # Quite Mode to run without graphics for tests
+        if quietMode:
+            self.startRunning()
 
     def initialize_buttons(self):
         """ Draw User Buttons on top of interface 
@@ -187,15 +167,13 @@ class Placer():
         self.running = True
         if (self.firstRun):
             self.start_timer = time.clock()
-            self.T = 0.99
         self._startplacement()
 
     def pauseRunning(self):
-        """  """
+        """ Pause process of SA by exiting loop """
         self.start_button['state'] = 'normal'
         self.pause_button['state'] = 'disabled'
         self.running = False
-        
         
     def getGraph(self, fin):
         """ Parse Input File to fill up Graph structure """
@@ -210,7 +188,7 @@ class Placer():
         self.cols =  int(tmpList[3])
         # Number of available sites in the Circuit
         self.sitesNum = self.rows*self.cols
-        
+        # Annealing parameter is 10*N^(4/3). Where N is the number of cells to be placed
         self.k = 10*pow(self.cells,(4/3))
         
         # Add nodes from 0 to number of Cells to graph structure and initialize net array and net cost        
@@ -475,8 +453,40 @@ class Placer():
         self.master.quit()
 
 root = tk.Tk()
-placer = Placer(root,sys.argv[1:])
-root.wm_title("SA Placement Tool")
+
+#=================Get options=================#
+inputfile = None
+quietMode = False
+
+# Default SA Temperature
+T = 1
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "hqt:i:", ["ifile="])
+except getopt.GetoptError:
+    print 'test.py -i <inputfile>'
+    sys.exit(2)
+
+for opt, arg in opts:
+    if opt == '-h':
+        print 'test.py -i <inputfile> [-q] [-t <Temperature>]'
+        print "-q : Quiet Mode"
+        print "-t <Temperature>: Initial temperature for SA"
+        sys.exit()
+    elif opt in ("-i", "--ifile"):
+        inputfile = arg
+        print "Read file " + inputfile
+    elif opt == '-t':
+        T = int(arg)
+    elif opt == "-q":
+        quietMode = True
+
+if (not inputfile):
+    print 'test.py -i <inputfile>'
+    sys.exit(2)
+
+placer = Placer(root,T,inputfile,quietMode)
+root.wm_title("SA Placement Tool. EECE583: Jose Pinilla")
 root.protocol('WM_DELETE_WINDOW', placer.quitApp)
 root.resizable(False, False)
 root.mainloop()
