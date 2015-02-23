@@ -19,7 +19,7 @@ class Placer():
         Site: Possible location for a Cell (Is Free or is occupied by a Cell)
         Block: Graphic representation and data of a Site
      """  
-    def __init__(self,master,T,inputfile,quietMode):
+    def __init__(self,master,T,seed,inputfile,quietMode):
         
         #=============Parse file to create cells graph===============#
         # Create Directed Graph and fill with input file
@@ -37,6 +37,8 @@ class Placer():
         self.tags = []
         # Assign Initial Temperature
         self.T = T
+        # Assign Initial Seed
+        self.seed = seed
         #================Draw Buttons and plots================#
         self.master = master
         self.initialize_buttons()
@@ -104,12 +106,6 @@ class Placer():
         
         self.draw_button = tk.Button(self.master, text='Draw', command = self.drawCells)
         self.draw_button.grid(row=0, column=4)
-        
-        self.seed_label = tk.Label(self.master, text = "Seed")
-        self.seed_label.grid(row=2, column=3)
-        self.seed_entry = tk.Entry(self.master)
-        self.seed_entry.grid(row=2, column=4)
-        self.seed_entry.insert(0, '30')
         
         # Initialize Button States and Actions
         self.pause_button['state'] = 'disabled'
@@ -205,7 +201,6 @@ class Placer():
     def startRunning(self):
         """ User control for placement process """
         self.start_button['state'] = 'disabled'
-        self.seed_entry['state'] = 'disabled'
         self.pause_button['state'] = 'normal'
         self.running = True
         
@@ -248,8 +243,9 @@ class Placer():
             self.updatePlot(self.oldCost)
         
         #========================Simulated Annealing========================#
-        while (self.T>0.1) and self.running:
+        while (self.T>0.01) and self.running:
             
+            inCost = self.totalCost
             for self.k in range(0,self.k):
                 
                 if (not self.running):
@@ -279,7 +275,9 @@ class Placer():
                     # Revert Cost
                     self.incrCost(swapCell,swapTgtCell)
 
-            self.T=0.99*self.T
+            if inCost == newCost:
+                break
+            self.T=0.9*self.T
             
         # Append result to results file
         with open("results.txt", "a") as outputfile:
@@ -344,7 +342,7 @@ class Placer():
 
     def randPlace(self):
         """ Random placement, for every node a Site is assigned """
-        random.seed(int(self.seed_entry.get()))
+        random.seed(self.seed)
         
         for node in self.G.nodes():
             randSite = random.randint(0,self.sitesNum-1)
@@ -362,7 +360,6 @@ class Placer():
             for nb in self.G.neighbors(node):
                 nbX,nbY = self.G.node[nb]["site"].getCenter()
                 self.connLines.append(self.canvasCirkt.create_line(pX,pY,nbX,nbY))
-
             self.canvasCirkt.update()
 
     def drawTags(self):
@@ -467,16 +464,17 @@ def main(argv):
     inputfile = None
     quietMode = False
     temperature = 1
+    seed = 30
     
     try:
-        opts, args = getopt.getopt(argv, "hqt:i:", ["ifile="])
+        opts, args = getopt.getopt(argv, "hqs:t:i:", ["ifile="])
     except getopt.GetoptError:
         print 'test.py -i <inputfile>'
         sys.exit(2)
     
     for opt, arg in opts:
         if opt == '-h':
-            print 'test.py -i <inputfile> [-q] [-t <Temperature>]'
+            print 'test.py -i <inputfile> [-q] [-t <Temperature>] [-s <Seed>]'
             print "-q : Quiet Mode"
             print "-t <Temperature>: Initial temperature for SA"
             sys.exit()
@@ -485,6 +483,8 @@ def main(argv):
             print "Read file " + inputfile
         elif opt == '-t':
             temperature = int(arg)
+        elif opt == '-s':
+            seed = int(arg)
         elif opt == "-q":
             quietMode = True
     
@@ -492,7 +492,7 @@ def main(argv):
         print 'test.py -i <inputfile>'
         sys.exit(2)
     
-    placer = Placer(root,temperature,inputfile,quietMode)
+    placer = Placer(root,temperature,seed,inputfile,quietMode)
     root.wm_title("SA Placement Tool. EECE583: Jose Pinilla")
     root.protocol('WM_DELETE_WINDOW', placer.quitApp)
     root.resizable(False, False)

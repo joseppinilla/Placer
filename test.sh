@@ -10,27 +10,29 @@ done < ./results.txt
 rm ./results.txt
 
 FILES=./benchmarks/*
-for f in $FILES
+
+for py in "placerA2b.py" "placerA2c.py" "placerA2d.py" "placerA2.py"
 do
-  echo "Placing $f benchmark..."
-	python ./placerA2/placerA2.py -i $f
-done
+	for s in 1 32 64 85
+	do
+		for t in 1 10 100
+		do
+				for f in $FILES
+				do
+					echo "Placing $f benchmark..."
+					time python ./placerA2/$py -q -t $t -s $s -i $f
+				done
 
-total=0
+				total=0
 
-while read line
-do
-		var=$((var+1))
-		total=$((total+$line))
-done < ./results.txt
+				while read line
+				do
+						var=$((var+1))
+						total=$((total+$line))
+				done < ./results.txt
 
-echo $total/$var
-echo $((total / var)) >> ./average.txt
-
-
-
-
-
-
-
-
+				echo $total/$var
+				echo $((total / var)) >> ./average.txt
+		done #Temp
+	done #Seed
+done #Python
