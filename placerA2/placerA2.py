@@ -57,14 +57,14 @@ class Placer():
         self.sites = []
         # Array of Text objects noting the name of the node assigned to a cell site 
         self.tags = []
-        
+                
         #================Draw Buttons and plots================#
         self.master = master
         self.initialize_buttons()
         self.initialize_plots()
-        
+                
         # To run on scripts for characterization
-        #self.startRunning()
+        self.startRunning()
 
     def initialize_buttons(self):
         """ Draw User Buttons on top of interface 
@@ -77,7 +77,7 @@ class Placer():
         self.start_button = tk.Button(self.master, text='Start', command = self.startRunning)
         self.start_button.grid(row=0, column=0)
 
-        self.pause_button = tk.Button(self.master, text='Stop', command = self.pauseRunning)
+        self.pause_button = tk.Button(self.master, text='Pause', command = self.pauseRunning)
         self.pause_button.grid(row=0, column=1)
 
         self.graph_button = tk.Button(self.master, text='Graph', command = self.showGraph)
@@ -211,28 +211,32 @@ class Placer():
         # Number of available sites in the Circuit
         self.sitesNum = self.rows*self.cols
         
-        # Add nodes from 0 to number of Cells to graph structure and initialize net array        
+        self.k = 10*pow(self.cells,(4/3))
+        
+        # Add nodes from 0 to number of Cells to graph structure and initialize net array and net cost        
         self.G.add_nodes_from(range(0,self.cells))
         for node in self.G.nodes():
-            self.G.node[node]["net"]=[]
+            self.G.node[node]["nets"]=[]
+            self.G.node[node]["cost"]=0
             
         # For every Net, add edges between corresponding nodes
         for net in range(0,self.conns):
             tmpList = fin.readline().split()
             numNodes = int(tmpList[0])
             srcNode = int(tmpList[1])
-            self.G.node[srcNode]["net"].append(net)
+            self.G.node[srcNode]["nets"].append(srcNode)
             for conn in range(2,numNodes+1):
                 self.G.add_edge(srcNode, int(tmpList[conn]))
-                self.G.node[int(tmpList[conn])]["net"].append(net)
-    
+                self.G.node[int(tmpList[conn])]["nets"].append(srcNode)        
+        
     def _startplacement(self):
         """ Start Simulated Annealing Process """
         
         # On first run to random placement. This allows pausing and continuing the process
         if (self.firstRun == True):
             self.randPlace()
-            self.oldCost = self.cost()
+            self.cost()
+            self.oldCost = self.totalCost 
             self.firstRun=False
         
         # If user selects drawing circuit
@@ -244,17 +248,20 @@ class Placer():
         if(self.plot):
             self.updatePlot(self.oldCost)
         
-        
         #========================Simulated Annealing========================#
         while (self.T>0.1) and self.running:
             
-            for self.k in range(0,100): #TODO: Try other numbers
+            for self.k in range(0,self.k):
                 
                 if (not self.running):
                     return
     
-                swapCell, swapSite = self.swapRand()
-                newCost = self.cost()
+                swapCell, swapSite, swapTgtCell = self.swapRand()
+                               
+                self.incrCost(swapCell,swapTgtCell)
+                                  
+                newCost = self.totalCost
+                    
                 deltaNCost = 0-(newCost - self.oldCost)
                 
                 rand = random.random()
@@ -270,16 +277,23 @@ class Placer():
                 else:
                     # Revert move  
                     self.swap(swapCell,swapSite)
+                    # Revert Cost
+                    self.incrCost(swapCell,swapTgtCell)
 
             self.T=0.99*self.T
+            
                 
         # Always display result at the end of the process
         self.updateDraw()
-        self.updatePlot(newCost)
+        self.updatePlot(self.totalCost)
         
+        # Disable Buttons when finished
+        self.pause_button['state'] = 'disabled'
+        self.plot_button['state'] = 'disabled'
+        self.draw_button['state'] = 'disabled'
         # Append result to results file
         with open("results.txt", "a") as outputfile:
-            outputfile.write(str(newCost) + "\n")
+            outputfile.write(str(self.totalCost) + "\n")
 
         # When running without visualization close window            
         if not self.drawing:
@@ -296,13 +310,14 @@ class Placer():
         randSite = random.randint(0,self.sitesNum-1)
         
         # Do swap
-        self.swap(randCell,randSite)
+        tgtSiteCell = self.swap(randCell,randSite)
         
-        return randCell, randCellSite
+        return randCell, randCellSite, tgtSiteCell
     
     def swap(self,swapCell,swapSite):
         """ Swap Cell(occupying site) to given Target Site(could be free) """
         
+        tgtSiteCell = None
         # Target Site can be empty
         if (self.sites[swapSite].isFree()):
             # Free Cell value of Random Cell
@@ -320,6 +335,8 @@ class Placer():
         self.sites[swapSite].setCell(swapCell)
         # Node of Swap Cell now points to Target Site
         self.G.node[swapCell]["site"] = self.sites[swapSite]
+        
+        return tgtSiteCell
                  
     def updateDraw(self):
         """ Draw circuit Connections and Cell Tags """
@@ -408,29 +425,50 @@ class Placer():
         
         """
         
-        cost = 0
+        # Accumulator for total Cost of half-perimeter of bounding box for all nets
+        self.totalCost = 0
         for node in self.G.nodes():
-            # Initialize bounding box points on net source
-            srcX,srcY = self.G.node[node]["site"].getBlockXY(self.cols,self.rows)
-            minX, maxX = srcX, srcX
-            minY, maxY = srcY, srcY
-            
-            # Find bounding box with min and max for X and Y
-            for nb in self.G.neighbors(node):
-                nbX,nbY = self.G.node[nb]["site"].getBlockXY(self.cols,self.rows)
-                if (nbX>maxX):
-                    maxX=nbX
-                elif(nbX<minX):
-                    minX=nbX
-                if(nbY>maxY):
-                    maxY=nbY
-                elif(nbY<minY):
-                    minY=nbY
-            
+            # Update Cost of net
+            bbCost = self.boundBoxCost(node)
+            self.G.node[node]["cost"] = bbCost
             # Accumulate cost as Half Perimeter of Bounding Box for every net
-            cost += (maxX-minX) + ((maxY-minY)*2)
+            self.totalCost += bbCost
+    
+    def incrCost(self,swapCell,swapTgtCell):
 
-        return cost
+        # Find Nets modified by swap. "nets" stores Net source nodes        
+        swapNets = set(self.G.node[swapCell]["nets"])
+
+        if swapTgtCell:
+            swapNets.update(self.G.node[swapTgtCell]["nets"])
+                   
+        for node in swapNets:
+            # Decrement Total Cost by Cost of changed net
+            self.totalCost -= self.G.node[node]["cost"]
+            # Assign new Cost to net cost value
+            self.G.node[node]["cost"] = self.boundBoxCost(node)
+            # Increment Total Cost by Cost of changed net
+            self.totalCost += self.G.node[node]["cost"]
+        
+    def boundBoxCost(self,node):
+        # Initialize bounding box points on net source
+        srcX,srcY = self.G.node[node]["site"].getBlockXY(self.cols,self.rows)
+        minX, maxX = srcX, srcX
+        minY, maxY = srcY, srcY
+        
+        # Find bounding box with min and max for X and Y
+        for nb in self.G.neighbors(node):
+            nbX,nbY = self.G.node[nb]["site"].getBlockXY(self.cols,self.rows)
+            if (nbX>maxX):
+                maxX=nbX
+            elif(nbX<minX):
+                minX=nbX
+            if(nbY>maxY):
+                maxY=nbY
+            elif(nbY<minY):
+                minY=nbY
+                
+        return (maxX-minX) + ((maxY-minY)*2)
     
     def quitApp(self):
         self.master.destroy()
