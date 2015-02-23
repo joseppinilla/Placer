@@ -15,6 +15,7 @@ class Placer():
     """ Circuit Cell placement using Simulated Annealing
         Circuit: A representation of a circuit by Cells to be placed in rows and columns of Sites
         Cell: Circuit component represented as a Graph node with connections to other Cells as edges
+        Node: Graph representation of a Cell
         Site: Possible location for a Cell (Is Free or is occupied by a Cell)
         Block: Graphic representation and data of a Site
      """  
@@ -41,10 +42,45 @@ class Placer():
         self.initialize_buttons()
         self.initialize_plots()
         
-        
-        # Quite Mode to run without graphics for tests
+        # Quite Mode to run without graphics
         if quietMode:
-            self.startRunning()
+            self.running = True
+            self.start_timer = time.clock()
+            # Simulated Annelaing Function
+            self._startplacement()
+            sys.exit()
+
+    def getGraph(self, fin):
+        """ Parse Input File to fill up Graph structure """
+        tmpList = fin.readline().split()
+        # Number of Cells to be placed
+        self.cells = int(tmpList[0])
+        # Number of Connections or Nets
+        self.conns = int(tmpList[1])
+        # Number of Circuit Rows
+        self.rows =  int(tmpList[2])
+        # Number of Circuit Columns
+        self.cols =  int(tmpList[3])
+        # Number of available sites in the Circuit
+        self.sitesNum = self.rows*self.cols
+        # Annealing parameter is 10*N^(4/3). Where N is the number of cells to be placed
+        self.k = 10*pow(self.cells,(4/3))
+        
+        # Add nodes from 0 to number of Cells to graph structure and initialize net array and net cost        
+        self.G.add_nodes_from(range(0,self.cells))
+        for node in self.G.nodes():
+            self.G.node[node]["nets"]=[]
+            self.G.node[node]["cost"]=0
+            
+        # For every Net, add edges between corresponding nodes
+        for net in range(0,self.conns):
+            tmpList = fin.readline().split()
+            numNodes = int(tmpList[0])
+            srcNode = int(tmpList[1])
+            self.G.node[srcNode]["nets"].append(srcNode)
+            for conn in range(2,numNodes+1):
+                self.G.add_edge(srcNode, int(tmpList[conn]))
+                self.G.node[int(tmpList[conn])]["nets"].append(srcNode)
 
     def initialize_buttons(self):
         """ Draw User Buttons on top of interface 
@@ -68,6 +104,12 @@ class Placer():
         
         self.draw_button = tk.Button(self.master, text='Draw', command = self.drawCells)
         self.draw_button.grid(row=0, column=4)
+        
+        self.seed_label = tk.Label(self.master, text = "Seed")
+        self.seed_label.grid(row=2, column=3)
+        self.seed_entry = tk.Entry(self.master)
+        self.seed_entry.grid(row=2, column=4)
+        self.seed_entry.insert(0, '30')
         
         # Initialize Button States and Actions
         self.pause_button['state'] = 'disabled'
@@ -124,8 +166,8 @@ class Placer():
         self.lines, = self.axCost.plot([],[])
         self.axCost.set_xlabel("Time")
         self.axCost.set_title("Cost")
+
         # Draw Cost function Plot
-        
         self.canvasPlot = FigureCanvasTkAgg(self.figure, master=self.master)
         self.canvasPlot.get_tk_widget().grid(row=1,column=0)
         
@@ -163,49 +205,28 @@ class Placer():
     def startRunning(self):
         """ User control for placement process """
         self.start_button['state'] = 'disabled'
+        self.seed_entry['state'] = 'disabled'
         self.pause_button['state'] = 'normal'
         self.running = True
+        
+        # If first run and not continuation from pause
         if (self.firstRun):
             self.start_timer = time.clock()
+        # Simulated Annelaing Function
         self._startplacement()
+        # Always display result at the end of the process
+        self.updateDraw()
+        self.updatePlot(self.totalCost)
+        # Disable Buttons when finished
+        self.pause_button['state'] = 'disabled'
+        self.plot_button['state'] = 'disabled'
+        self.draw_button['state'] = 'disabled'
 
     def pauseRunning(self):
         """ Pause process of SA by exiting loop """
         self.start_button['state'] = 'normal'
         self.pause_button['state'] = 'disabled'
         self.running = False
-        
-    def getGraph(self, fin):
-        """ Parse Input File to fill up Graph structure """
-        tmpList = fin.readline().split()
-        # Number of Cells to be placed
-        self.cells = int(tmpList[0])
-        # Number of Connections or Nets
-        self.conns = int(tmpList[1])
-        # Number of Circuit Rows
-        self.rows =  int(tmpList[2])
-        # Number of Circuit Columns
-        self.cols =  int(tmpList[3])
-        # Number of available sites in the Circuit
-        self.sitesNum = self.rows*self.cols
-        # Annealing parameter is 10*N^(4/3). Where N is the number of cells to be placed
-        self.k = 10*pow(self.cells,(4/3))
-        
-        # Add nodes from 0 to number of Cells to graph structure and initialize net array and net cost        
-        self.G.add_nodes_from(range(0,self.cells))
-        for node in self.G.nodes():
-            self.G.node[node]["nets"]=[]
-            self.G.node[node]["cost"]=0
-            
-        # For every Net, add edges between corresponding nodes
-        for net in range(0,self.conns):
-            tmpList = fin.readline().split()
-            numNodes = int(tmpList[0])
-            srcNode = int(tmpList[1])
-            self.G.node[srcNode]["nets"].append(srcNode)
-            for conn in range(2,numNodes+1):
-                self.G.add_edge(srcNode, int(tmpList[conn]))
-                self.G.node[int(tmpList[conn])]["nets"].append(srcNode)        
         
     def _startplacement(self):
         """ Start Simulated Annealing Process """
@@ -260,22 +281,9 @@ class Placer():
 
             self.T=0.99*self.T
             
-                
-        # Always display result at the end of the process
-        self.updateDraw()
-        self.updatePlot(self.totalCost)
-        
-        # Disable Buttons when finished
-        self.pause_button['state'] = 'disabled'
-        self.plot_button['state'] = 'disabled'
-        self.draw_button['state'] = 'disabled'
         # Append result to results file
         with open("results.txt", "a") as outputfile:
             outputfile.write(str(self.totalCost) + "\n")
-
-        # When running without visualization close window            
-        if not self.drawing:
-            sys.exit()
         
     def swapRand(self):
         """ Select Random Cell and swap into Random Site  """
@@ -283,11 +291,9 @@ class Placer():
         randCell = random.randint(0,self.cells-1)
         # Store Site of Cell to be swapped to use for Swap Back 
         randCellSite = self.G.node[randCell]["site"].getIndex()
-        
         # Pick Random Site. Can be free
         randSite = random.randint(0,self.sitesNum-1)
-        
-        # Do swap
+        # Do swap. Returns Cell of target Site to use for incremental cost or none if target was free
         tgtSiteCell = self.swap(randCell,randSite)
         
         return randCell, randCellSite, tgtSiteCell
@@ -300,7 +306,6 @@ class Placer():
         if (self.sites[swapSite].isFree()):
             # Free Cell value of Random Cell
             self.G.node[swapCell]["site"].free()
-
         else:
             # Store Cell value of Target Site
             tgtSiteCell = self.sites[swapSite].getCell()
@@ -339,8 +344,7 @@ class Placer():
 
     def randPlace(self):
         """ Random placement, for every node a Site is assigned """
-        
-        random.seed(30) #TODO: Adjustable Seed
+        random.seed(int(self.seed_entry.get()))
         
         for node in self.G.nodes():
             randSite = random.randint(0,self.sitesNum-1)
@@ -353,7 +357,6 @@ class Placer():
                                     
     def drawConns(self):
         """ Extract center point from each node and draw connection to other nodes """
-        #TODO: Draw each connection once
         for node in self.G.nodes():
             pX,pY = self.G.node[node]["site"].getCenter()
             for nb in self.G.neighbors(node):
@@ -361,8 +364,7 @@ class Placer():
                 self.connLines.append(self.canvasCirkt.create_line(pX,pY,nbX,nbY))
 
             self.canvasCirkt.update()
-            
-    
+
     def drawTags(self):
         """ Extract center point from each node and draw node Tag """
         for node in self.G.nodes():
@@ -402,21 +404,22 @@ class Placer():
             DistY = (CX-AY)*2
         
         """
-        
         # Accumulator for total Cost of half-perimeter of bounding box for all nets
         self.totalCost = 0
         for node in self.G.nodes():
             # Update Cost of net
             bbCost = self.boundBoxCost(node)
             self.G.node[node]["cost"] = bbCost
-            # Accumulate cost as Half Perimeter of Bounding Box for every net
+            # Accumulate cost as Half Perimeter of Bounding Box for every Net
             self.totalCost += bbCost
     
     def incrCost(self,swapCell,swapTgtCell):
-
+        """ Incremental Cost function. From Cells inputs modify total cost by 
+            subtracting the cost of the nets connected to those cells, recalculating
+            the cost of said Net and adding it to the total"""
         # Find Nets modified by swap. "nets" stores Net source nodes        
         swapNets = set(self.G.node[swapCell]["nets"])
-
+        # Add nets from target to set
         if swapTgtCell:
             swapNets.update(self.G.node[swapTgtCell]["nets"])
                    
@@ -429,6 +432,7 @@ class Placer():
             self.totalCost += self.G.node[node]["cost"]
         
     def boundBoxCost(self,node):
+        """ Get Half Perimeter of Net of input Node """
         # Initialize bounding box points on net source
         srcX,srcY = self.G.node[node]["site"].getBlockXY(self.cols,self.rows)
         minX, maxX = srcX, srcX
@@ -445,49 +449,55 @@ class Placer():
                 maxY=nbY
             elif(nbY<minY):
                 minY=nbY
-                
+        
+        # Return Half-Perimeter of Bounding Box
         return (maxX-minX) + ((maxY-minY)*2)
     
     def quitApp(self):
+        """ Exit """
         self.master.destroy()
         self.master.quit()
 
-root = tk.Tk()
 
-#=================Get options=================#
-inputfile = None
-quietMode = False
+def main(argv):
+    #==============Initialize Graphics============#
+    root = tk.Tk()   
+    #=================Options=================#
+    # Default Values
+    inputfile = None
+    quietMode = False
+    temperature = 1
+    
+    try:
+        opts, args = getopt.getopt(argv, "hqt:i:", ["ifile="])
+    except getopt.GetoptError:
+        print 'test.py -i <inputfile>'
+        sys.exit(2)
+    
+    for opt, arg in opts:
+        if opt == '-h':
+            print 'test.py -i <inputfile> [-q] [-t <Temperature>]'
+            print "-q : Quiet Mode"
+            print "-t <Temperature>: Initial temperature for SA"
+            sys.exit()
+        elif opt in ("-i", "--ifile"):
+            inputfile = arg
+            print "Read file " + inputfile
+        elif opt == '-t':
+            temperature = int(arg)
+        elif opt == "-q":
+            quietMode = True
+    
+    if (not inputfile):
+        print 'test.py -i <inputfile>'
+        sys.exit(2)
+    
+    placer = Placer(root,temperature,inputfile,quietMode)
+    root.wm_title("SA Placement Tool. EECE583: Jose Pinilla")
+    root.protocol('WM_DELETE_WINDOW', placer.quitApp)
+    root.resizable(False, False)
+    root.mainloop()
 
-# Default SA Temperature
-T = 1
 
-try:
-    opts, args = getopt.getopt(sys.argv[1:], "hqt:i:", ["ifile="])
-except getopt.GetoptError:
-    print 'test.py -i <inputfile>'
-    sys.exit(2)
-
-for opt, arg in opts:
-    if opt == '-h':
-        print 'test.py -i <inputfile> [-q] [-t <Temperature>]'
-        print "-q : Quiet Mode"
-        print "-t <Temperature>: Initial temperature for SA"
-        sys.exit()
-    elif opt in ("-i", "--ifile"):
-        inputfile = arg
-        print "Read file " + inputfile
-    elif opt == '-t':
-        T = int(arg)
-    elif opt == "-q":
-        quietMode = True
-
-if (not inputfile):
-    print 'test.py -i <inputfile>'
-    sys.exit(2)
-
-placer = Placer(root,T,inputfile,quietMode)
-root.wm_title("SA Placement Tool. EECE583: Jose Pinilla")
-root.protocol('WM_DELETE_WINDOW', placer.quitApp)
-root.resizable(False, False)
-root.mainloop()
-
+if __name__ == "__main__":
+    main(sys.argv[1:])
