@@ -43,3 +43,4 @@ class Block():
     def free(self):
         self.state = self.stateDict['free']
         self.cell = -1
+    

@@ -49,7 +49,7 @@ class Placer():
             self.running = True
             self.start_timer = time.clock()
             # Simulated Annelaing Function
-            self._startplacement()
+            self._startplacement(True)
             sys.exit()
 
     def getGraph(self, fin):
@@ -66,7 +66,11 @@ class Placer():
         # Number of available sites in the Circuit
         self.sitesNum = self.rows*self.cols
         # Annealing parameter is 10*N^(4/3). Where N is the number of cells to be placed
-        self.k = 10*pow(self.cells,(4/3))
+        self.k = pow(self.cells,(4/3))
+        
+        
+        self.winX = self.cols/4
+        self.winY = self.rows/4
         
         # Add nodes from 0 to number of Cells to graph structure and initialize net array and net cost        
         self.G.add_nodes_from(range(0,self.cells))
@@ -208,7 +212,7 @@ class Placer():
         if (self.firstRun):
             self.start_timer = time.clock()
         # Simulated Annelaing Function
-        self._startplacement()
+        self._startplacement(False)
         # Always display result at the end of the process
         self.updateDraw()
         self.updatePlot(self.totalCost)
@@ -223,7 +227,7 @@ class Placer():
         self.pause_button['state'] = 'disabled'
         self.running = False
         
-    def _startplacement(self):
+    def _startplacement(self,quietMode):
         """ Start Simulated Annealing Process """
         
         # On first run to random placement. This allows pausing and continuing the process
@@ -234,63 +238,77 @@ class Placer():
             self.firstRun=False
         
         # If user selects drawing circuit
-        if (self.drawing):
+        if not quietMode:
             self.drawConns()
             self.drawTags()
-        
-        # If user selects plotting cost function
-        if(self.plot):
             self.updatePlot(self.oldCost)
         
+        print "Inital Cost ", self.totalCost        
         #========================Simulated Annealing========================#
-        while (self.T>0.01) and self.running:
+        while (self.T>0.1):
+
+            if (not self.running):
+                return            
             
-            inCost = self.totalCost
-            for self.k in range(0,self.k):
+            self.k = self.k+5
+            
+            for i in range(0,self.k):
                 
-                if (not self.running):
-                    return
-    
-                swapCell, swapSite, swapTgtCell = self.swapRand()
+                swapCell, swapSite, swapTgtCell = self.swapWinRand()
                                
                 self.incrCost(swapCell,swapTgtCell)
                                   
                 newCost = self.totalCost
-                    
-                deltaNCost = 0-(newCost - self.oldCost)
                 
-                rand = random.random()
+                deltaNCost = (newCost - self.oldCost)
+                if deltaNCost>0:              
+                    if (random.random() > math.exp(-deltaNCost/self.T)):                   
+                        # Revert move  
+                        self.swap(swapCell,swapSite)
+                        # Revert Cost
+                        self.incrCost(swapCell,swapTgtCell)
+                        continue
 
-                if (rand < math.exp(deltaNCost/self.T)):
-                    # Take move
-                    self.oldCost = newCost
-                    if (self.drawing):
-                        self.updateDraw()
-                    if (self.plot):
-                        self.updatePlot(newCost)
-                    
-                else:
-                    # Revert move  
-                    self.swap(swapCell,swapSite)
-                    # Revert Cost
-                    self.incrCost(swapCell,swapTgtCell)
-
-            if inCost == newCost:
-                break
-            self.T=0.9*self.T
+                # Take move
+                self.oldCost = newCost                    
+                       
+            if not quietMode:
+                if (self.drawing):
+                    self.updateDraw()
+                if (self.plot):
+                    self.updatePlot(self.oldCost)
             
+            self.T=0.99*self.T
+            
+        print "Final Cost ", self.totalCost
         # Append result to results file
         with open("results.txt", "a") as outputfile:
             outputfile.write(str(self.totalCost) + "\n")
-        
-    def swapRand(self):
+           
+    def swapWinRand(self):
         """ Select Random Cell and swap into Random Site  """
         # Pick Random Cell so the move is always from an occupied to a free/occupied cell
         randCell = random.randint(0,self.cells-1)
         # Store Site of Cell to be swapped to use for Swap Back 
         randCellSite = self.G.node[randCell]["site"].getIndex()
-        # Pick Random Site. Can be free
-        randSite = random.randint(0,self.sitesNum-1)
+                
+        # Pick random site near Cell
+        randX, randY = self.G.node[randCell]["site"].getBlockXY(self.rows,self.cols)
+        
+        siteX = randX + int(random.uniform(-self.winX,self.winX))
+        
+        siteY = randY + int(random.uniform(-self.winY,self.winY))
+        
+        if siteX<0:
+            siteX = 0
+        if siteX >= self.cols:
+            siteX = self.cols-1
+        if siteY < 0:
+            siteY = 0
+        if siteY >= self.rows:
+            siteY = self.rows-1
+                       
+        randSite = siteY*self.cols +siteX
         # Do swap. Returns Cell of target Site to use for incremental cost or none if target was free
         tgtSiteCell = self.swap(randCell,randSite)
         
