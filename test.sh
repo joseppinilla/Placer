@@ -11,9 +11,9 @@ rm ./results.txt
 
 FILES=./benchmarks/*
 
-for s in 128
+for s in 1 2 20 85 128
 do
-	for t in 10
+	for t in 1 5 10
 	do
 			for f in $FILES
 			do
