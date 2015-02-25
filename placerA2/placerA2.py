@@ -175,7 +175,6 @@ class Placer():
         self.toolbarFrame = tk.Frame(self.master)
         self.toolbarFrame.grid(row=2,column=0,columnspan=3,sticky="W")
         self.toolbarPlot = NavigationToolbar2TkAgg(self.canvasPlot,self.toolbarFrame)
-        self.toolbarPlot.toolitems
            
     def showGraph(self):
         """ User selection to display graph """
