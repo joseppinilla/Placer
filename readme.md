@@ -2,8 +2,8 @@ Install NetworkX and Numpy
 
 Easiest way to install:
 	>sudo apt-get install python-pip
-	>pip install networkx
-	>pip install numpy
+	>sudo pip install networkx
+	>sudo pip install numpy
 
 Program Usage Syntax:
 python placerA2.py -i "file" [-q] [-t int] [-s int]
