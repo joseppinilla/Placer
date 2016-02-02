@@ -1,8 +1,10 @@
 Install NetworkX and Numpy
 
-Easiest way to install:
+Easiest way to install dependencies:
 	>sudo apt-get install python-pip
 	>sudo pip install networkx
+	>sudo apt-get install tk tk-dev
+	>sudo pip install matplotlib
 	>sudo pip install numpy
 
 Program Usage Syntax:
